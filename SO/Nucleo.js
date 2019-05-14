@@ -1,19 +1,20 @@
 class Nucleo{
   
-  
-  
   constructor(){
-    this.READY = 'P';
-    this.RUNNING = 'R';
-    this.BLOCKED = 'B';
-    this.FINISHED = 'F';
+    //estados de execução
+    this.PRONTO = 'P';
+    this.EXECUTANDO = 'E';
+    this.BLOQUEADO = 'B';
+    this.FINALIZADO = 'F';
   }
   
   criarMemoria(){
     return [];
+    //retorna um array vazio
   }
   
   alocarProcesso(mem, processo){
+    //verifica se há espaço na memória
         if (mem.length <= 2048){
             mem.push(processo)
             return true;
@@ -23,6 +24,7 @@ class Nucleo{
   }
   
   liberarProcesso(mem, pid){
+    //busca o processo e retira da memória
         if (mem.length == 0){
             console.log("Memória vazia");
             return false;
@@ -41,42 +43,45 @@ class Nucleo{
   }
   
   filasMultiplas(mem){
+    //define duas filas
     var fila1 = [];
     var fila2 = [];
     
-    //salva nas filas sem gerenciar depedendências
+    //salva os processos com alta prioridade na fila 1 e com baixa na fila 2 
     for(var i=0; i < mem.length; i++){
-      var p = mem[i];
-      if(p.prioridade == 'H'){
+      let p = mem[i];
+      if(p.prioridade == 'A'){
         fila1.push(p);
       }
-      if (p.prioridade == 'L'){
+      if (p.prioridade == 'B'){
         fila2.push(p);
       }
     }
     
-    //gerenciamento de dependências
-    for (var i=0; i < mem.length; i++){
-      var ph = mem[i];
-      for(var j=0; j < mem.length; j++){
-        var pl = mem[j];
+    //verifica se na fila 1 há um processo que depende de um processo da fila 2
+    //se existir passa esse processo dependente para a fila 2
+    for (var i=0; i < fila1.length; i++){
+      var ph = fila1[i];
+      for(var j=0; j < fila2.length; j++){
+        var pl = fila2[j];
         if(ph.dependencia == pl.pid){
-          ph.prioridade = 'L';
+          ph.prioridade = 'B';
           fila2.push(ph);
           fila1.splice(i,1);
+          
         }
       }
     }
-    
-    //gerenciamento de dependências
+    //verifica se na fila 2 há um processo que depende de um processo da fila 1
+    //se existir passa esse processo dependente para a fila 1
     for(var i=0; i< fila2.length; i++){
       var pl = fila2[i];
       for(var j=0; j < fila1.length; j++){
         var ph = fila1[j];
         if(pl.dependencia == ph.pid){
-          pl.prioridade = 'H';
+          pl.prioridade = 'A';
           fila1.push(pl);
-          fila2.splice(j,1);
+          fila2.splice(i,1);
         }
       }
     }
@@ -88,122 +93,134 @@ class Nucleo{
     var fila1 = filas[0];
     var fila2 = filas[1];
     while(true){
+      //inicia o escalonamento com a fila prioritária
       if(fila1.length > 0){
         console.log('Fila prioritária: ');
-        for(var i = 0;i<fila1.length;i++){
+        //percorre a fila prioritaria até que todos os processos sejam executados
+        for(var i = 0; i < fila1.length ; i++){
           let proc = fila1[i];
-          console.log(i);
           console.log("----------------------------------------");
           console.log(`Processo [${proc.pid}] - ${proc.nome} - estado ${proc.estado}`);
           
-          if (proc.dependencia != 0){  // com dependência
-            proc.estado = this.BLOCKED;
+          if (proc.dependencia != 0){  // se houver dependencia é bloqueado e passa para o próximo processo
+            proc.estado = this.BLOQUEADO;
             console.log(`Processo [${proc.pid}] - ${proc.nome} - estado ${proc.estado}`);
             continue;
           }
-          fila1.forEach((d)=>{
+          //verifica se o processo atual é dependencia de outro processo na mesma fila, se tiver tira a dependencia e passa para pronto
+          for(let k = 0;k<fila1.length;k++){
+            let d = fila1[k];
             if (d.dependencia == proc.pid){
               d.dependencia = 0
-              d.estado = this.READY;
+              d.estado = this.PRONTO;
             }
-          })
-              
-
-          proc.estado = this.RUNNING;
+          }  
+          proc.estado = this.EXECUTANDO;
           
-          if (proc.estado == this.RUNNING){
+          if (proc.estado == this.EXECUTANDO){
               console.log(`Processo [${proc.pid}] - ${proc.nome} - estado ${proc.estado}`);
-
+            
+              //executa até precisar do dado dependente
               if (proc.dado != 0){
-                  console.log("dado != 0");
-                  var blockP  = getRandomInt(1, proc.quantum); // irá executar até block
-                  console.log("blockP = "+blockP);
-                  var tempP = blockP; // guarda para executar posteriormente
+                  var blockP  = getRandomInt(1, proc.quantum); // sorteia um tempo em que o processo será bloqueado
+                  var tempP = blockP; 
+                //executa o processo até ser bloqueado
                   while (proc.quantum > blockP){
                       proc.percentual += 1
                       //await sleep(3000);
-                      console.log("#" + proc.percentual + "%");
+                      console.log(".".repeat(proc.percentual));
                       proc.quantum -= 1;
-                      //console.log(proc.quantum)
                   }
-                  proc.estado = this.BLOCKED
+                //bloqueia o processo
+                  proc.estado = this.BLOQUEADO
                   console.log(
                       `Processo [${proc.pid}] - ${proc.nome} - estado ${proc.estado} - Precisa do ${tempP} do processo ${proc.dado} - percentual ${proc.percentual}%`)
-                  proc.quantum = tempP; // atualiza o quantum
+                  proc.quantum = tempP; 
                   proc.dado = 0;
                   continue;
               }
+            //se o processo não tiver dado dependente ele executa até ser finalizado
               if (proc.dado == 0){
-                  console.log("dado == 0");
                   while (proc.quantum > 0){
-                      //console.log("quantom > 0");
-                      //console.log("quantom:",proc.quantum);
                       proc.percentual += 1;
                       //await sleep(3000);
-                      console.log("# " + proc.percentual+"%");
+                      console.log(".".repeat(proc.percentual));
                       proc.quantum -= 1;
                   }
-                  proc.estado = this.FINISHED
+                  proc.estado = this.FINALIZADO
               }
           }
-         if (proc.estado == this.FINISHED){
+         if (proc.estado == this.FINALIZADO){
             console.log('Processo finalizado');
             this.liberarProcesso(mem, proc.pid)
             fila1.splice(i,1);
          }    
         }
       }else if(fila2.length > 0){
+        //inicia o escalonamento com a fila não prioritária
         console.log('Fila não prioritária: ');
-        for(var i = 0;i < fila2.length;i++){
-          let proc = fila2[i];
+        //percorre a fila não prioritaria até que todos os processos sejam executados
+        for(var i = 0; i < fila2.length ; i++){
+          //let proc = fila2[i];
           console.log("----------------------------------------");
           console.log(`Processo [${proc.pid}] - ${proc.nome} - estado ${proc.estado}`);
           
-          if (proc.dependencia != 0){  // com dependência
-            proc.estado = this.BLOCKED;
+          if (proc.dependencia != 0){ // se houver dependencia é bloqueado e passa para o próximo processo
+            proc.estado = this.BLOQUEADO;
             console.log(`Processo [${proc.pid}] - ${proc.nome} - estado ${proc.estado}`);
             continue;
           }
-          fila1.forEach((d)=>{
+          
+          //verifica se o processo atual é dependencia de outro processo na mesma fila, se tiver tira a dependencia e passa para pronto
+          for(let k = 0; k< fila2.length;k++){
+            let d = fila2[k];
             if (d.dependencia == proc.pid){
               d.dependencia = 0
-              d.estado = this.READY;
+              d.estado = this.PRONTO;
             }
-          })
+          }
               
 
-          proc.estado = this.RUNNING;
+          proc.estado = this.EXECUTANDO;
           
-          if (proc.estado == this.RUNNING){
+          if (proc.estado == this.EXECUTANDO){
               console.log(`Processo [${proc.pid}] - ${proc.nome} - estado ${proc.estado}`);
-
+            
+            //executa até precisar do dado dependente
               if (proc.dado != 0){
-                  var blockP  = getRandomInt(1, proc.quantum); // irá executar até block
-                  var tempP = blockP; // guarda para executar posteriormente
+                  var blockP  = getRandomInt(1, proc.quantum);
+                  var tempP = blockP; 
+                //executa o processo até ser bloqueado
                   while (proc.quantum > blockP){
                       proc.percentual += 1
                       //await sleep(3000);
-                      console.log("# " + proc.percentual+"%");
+                      console.log(".".repeat(proc.percentual));
                       proc.quantum--;
                   }
-                  proc.estado = this.BLOCKED
+                //bloqueia o processo
+                  proc.estado = this.BLOQUEADO
                   console.log(
                       `Processo [${proc.pid}] - ${proc.nome} - estado ${proc.estado} - Precisa do ${tempP} do processo ${proc.dado} - percentual ${proc.percentual}%`)
                   proc.quantum = tempP // atualiza o quantum
                   proc.dado = 0
                   continue;
               }
+            //se o processo não tiver dado dependente ele executa até ser finalizado
               if (proc.dado == 0){
                   while (proc.quantum > 0){
                       proc.percentual += 1
-                      //await sleep(  3000);
-                      console.log("# " + proc.percentual+"%");
+                      //await sleep(3000);
+                      //100 = quantum
+                      //x = percentual
+                      //percentual*100 = x*quantum
+                      //x = percentual*quantum/100
+                      console.log(".".repeat(proc.percentual));
                       proc.quantum--;
                   }
-                  proc.estado = this.FINISHED
+                  proc.estado = this.FINALIZADO
               }
           }
-         if (proc.estado == this.FINISHED){
+         if (proc.estado == this.FINALIZADO){
             console.log('Processo finalizado');
             this.liberarProcesso(mem, proc.pid)
             fila2.splice(i,1);
@@ -214,6 +231,7 @@ class Nucleo{
       }
     } 
   }
+  //Exibe memória
   monitor(mem, code){
         if (mem.length == 0){
             console.log("Memória está vazia");
